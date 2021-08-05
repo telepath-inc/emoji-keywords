@@ -8,12 +8,22 @@ import csv
 import json
 from urllib import request
 
+SKIN_TONE_COMPONENTS = {
+    'light': 'U+1F3FB',
+    'medium-light': 'U+1F3FC',
+    'medium': 'U+1F3FD',
+    'medium-dark': 'U+1F3FE',
+    'dark': 'U+1F3FF',
+}
+
 
 @click.command()
 @click.option('--url', default='https://www.unicode.org/emoji/charts-13.1/emoji-list.html')
+@click.option('--skintone-url', default='https://www.unicode.org/emoji/charts-13.1/full-emoji-modifiers.html')
 @click.option('--overlay', help='CSV of additional keywords to include for given emoji')
-def parse(url, overlay):
-    data = parse_emoji(request.urlopen(url).read())
+@click.option('--flatten-keywords', help='enable flattening of phrases to separate keywords', is_flag=True)
+def parse(url, skintone_url, overlay, flatten_keywords):
+    data = parse_emoji(request.urlopen(url).read(), request.urlopen(skintone_url).read(), flatten_keywords)
 
     if overlay:
         # add keywords from provided overlay
@@ -22,8 +32,8 @@ def parse(url, overlay):
                 emoji = row[0].strip()
                 keyword = row[1].strip()
                 for _, cat_emoji in data.items():
-                    if emoji in dict(cat_emoji):
-                        for e, kw_list in cat_emoji:
+                    if any(emoji == ce[0] for ce in cat_emoji):
+                        for e, _, kw_list in cat_emoji:
                             if e == emoji:
                                 kw_list.append(keyword)
                         break
@@ -34,9 +44,31 @@ def parse(url, overlay):
         f.write(json.dumps(data, ensure_ascii=False))
 
 
-def parse_emoji(stream):
+def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
     """Parses an HTML Unicode.org emoji keywords table."""
-    soup = BeautifulSoup(stream, 'html.parser')
+    # parse which emoji take a single skintone modifier
+    soup = BeautifulSoup(skintone_stream, 'html.parser')
+
+    skintone_emoji = set()
+    for table in soup.find_all('table'):
+        rows = table.find_all('tr')
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) > 3:
+                codepoints = cols[1].get_text().strip()
+                modifier_count = sum(codepoints.count(cp) for cp in SKIN_TONE_COMPONENTS.values())
+                # only include emoji in set if they have exactly one modifier
+                if modifier_count == 1:
+                    s = ''.join(
+                        f'\\U{cp[2:]:0>8s}'.format(cp)
+                        for cp in codepoints.split(' ')
+                        if cp not in SKIN_TONE_COMPONENTS.values()
+                    ).encode('utf8').decode('unicode-escape')
+                    skintone_emoji.add(s)
+
+
+    # parse the full emoji keyword table
+    soup = BeautifulSoup(keyword_stream, 'html.parser')
     result = defaultdict(list)
 
     for table in soup.find_all('table'):
@@ -65,11 +97,21 @@ def parse_emoji(stream):
                 s = ''.join(f'\\U{cp[2:]:0>8s}'.format(cp) for cp in codepoints).encode('utf8').decode('unicode-escape')
 
                 short_name = cols[3].get_text().strip()
-                keywords = [kw.strip() for kw in cols[4].get_text().split('|')]
-                keywords.append(short_name)
-                if subcategory:
-                    keywords.append(subcategory)
-                result[category].append([s, keywords])
+                keywords = set()
+                if flatten_keywords:
+                    # flatten keywords from shortname, category, and keyword phrases down to unique lowercase individual words
+                    for kw in cols[4].get_text().split('|'):
+                        keywords.update(kw.lower().strip().split(' '))
+                    keywords.update(short_name.lower().strip().split(' '))
+                    if subcategory:
+                        keywords.update(subcategory.lower().strip().split(' '))
+                else:
+                    # lowercase keywords, but keep phrases as phrases
+                    keywords.update(kw.strip().lower() for kw in cols[4].get_text().split('|'))
+                    keywords.add(short_name.lower().strip())
+                    if subcategory:
+                        keywords.add(subcategory.lower().strip())
+                result[category].append([s, int(s in skintone_emoji), list(keywords)])
 
     return result
 
