@@ -112,7 +112,7 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
             if len(cols) == 5:
                 # parse encoded emoji from codepoints
                 codepoints = cols[1].get_text().strip().split(' ')
-                if len(codepoints) == 1 and int(codepoints[0][2:], 16) >= 0x2600 and int(codepoints[0][2:], 16) < 0x2800:
+                if len(codepoints) == 1 and (int(codepoints[0][2:], 16) < 0x100 or (int(codepoints[0][2:], 16) >= 0x2600 and int(codepoints[0][2:], 16) < 0x2800)):
                     s = ''.join(f'\\U{cp[2:]:0>8s}'.format(cp) for cp in codepoints).encode('utf8').decode('unicode-escape')
                     print(f"found dingbat/symbol: {s} {cols[4].get_text()}")
                     # codepoint is a symbol or dingbat - add FE0F modifier to make it an emoji
