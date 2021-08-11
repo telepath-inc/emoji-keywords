@@ -8,6 +8,19 @@ import csv
 import json
 from urllib import request
 
+EMOJI_CATEGORY_MAP = {
+    'Smileys & Emotion': 0,
+    'People & Body': 0,  # consolidate with Smileys & Emotion
+    'Animals & Nature': 1,
+    'Food & Drink': 2,
+    'Activities': 3,
+    'Travel & Places': 4,
+    'Objects': 5,
+    'Symbols': 6,
+    'Flags': 7,
+    'Component': None  # ignore
+}
+
 SKIN_TONE_COMPONENTS = {
     'light': 'U+1F3FB',
     'medium-light': 'U+1F3FC',
@@ -75,12 +88,14 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
         rows = table.find_all('tr')
 
         category = ''
+        category_key = None
         subcategory = ''
         for row in rows:
             # check if this row is a category header, and if so, reset the current category
             category_cell = row.find('th', attrs={'class': 'bighead'})
             if category_cell:
                 category = category_cell.get_text().strip()
+                category_key = EMOJI_CATEGORY_MAP[category]
                 subcategory = ''
                 continue
 
@@ -88,6 +103,9 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
             subcategory_cell = row.find('th', attrs={'class': 'mediumhead'})
             if subcategory_cell:
                 subcategory = subcategory_cell.get_text().strip().replace('-', ' ')
+                continue
+
+            if category_key is None:
                 continue
 
             cols = row.find_all('td')
@@ -111,7 +129,7 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
                     keywords.add(short_name.lower().strip())
                     if subcategory:
                         keywords.add(subcategory.lower().strip())
-                result[category].append([s, int(s in skintone_emoji), list(keywords)])
+                result[category_key].append([s, int(s in skintone_emoji), list(keywords)])
 
     return result
 
