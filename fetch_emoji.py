@@ -33,8 +33,8 @@ SKIN_TONE_COMPONENTS = {
 @click.command()
 @click.option('--url', default='https://www.unicode.org/emoji/charts-13.1/emoji-list.html')
 @click.option('--skintone-url', default='https://www.unicode.org/emoji/charts-13.1/full-emoji-modifiers.html')
-@click.option('--overlay', help='CSV of additional keywords to include for given emoji')
-@click.option('--flatten-keywords', help='enable flattening of phrases to separate keywords', is_flag=True)
+@click.option('--overlay', help='CSV of additional keywords to include for given emoji', required=True)
+@click.option('--flatten-keywords', help='enable flattening of phrases to separate keywords', is_flag=True, default=True)
 def parse(url, skintone_url, overlay, flatten_keywords):
     data = parse_emoji(request.urlopen(url).read(), request.urlopen(skintone_url).read(), flatten_keywords)
 
@@ -112,13 +112,6 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
             if len(cols) == 5:
                 # parse encoded emoji from codepoints
                 codepoints = cols[1].get_text().strip().split(' ')
-                if len(codepoints) == 1 and (int(codepoints[0][2:], 16) < 0x100 or (int(codepoints[0][2:], 16) >= 0x2600 and int(codepoints[0][2:], 16) < 0x2800)):
-                    s = ''.join(f'\\U{cp[2:]:0>8s}'.format(cp) for cp in codepoints).encode('utf8').decode('unicode-escape')
-                    print(f"found dingbat/symbol: {s} {cols[4].get_text()}")
-                    # codepoint is a symbol or dingbat - add FE0F modifier to make it an emoji
-                    codepoints.append('U+FE0F')
-                    s = ''.join(f'\\U{cp[2:]:0>8s}'.format(cp) for cp in codepoints).encode('utf8').decode('unicode-escape')
-                    print(f"annotated dingbat/symbol: {s}")
                 s = ''.join(f'\\U{cp[2:]:0>8s}'.format(cp) for cp in codepoints).encode('utf8').decode('unicode-escape')
 
                 short_name = cols[3].get_text().strip()
@@ -126,10 +119,10 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
                 if flatten_keywords:
                     # flatten keywords from shortname, category, and keyword phrases down to unique lowercase individual words
                     for kw in cols[4].get_text().split('|'):
-                        keywords.update(kw.lower().strip().split(' '))
-                    keywords.update(short_name.lower().strip().split(' '))
+                        keywords.update(kw.lower().strip().replace(':', '').split(' '))
+                    keywords.update(short_name.lower().strip().replace(':', '').split(' '))
                     if subcategory:
-                        keywords.update(subcategory.lower().strip().split(' '))
+                        keywords.update(subcategory.lower().strip().replace(':', '').split(' '))
                 else:
                     # lowercase keywords, but keep phrases as phrases
                     keywords.update(kw.strip().lower() for kw in cols[4].get_text().split('|'))
