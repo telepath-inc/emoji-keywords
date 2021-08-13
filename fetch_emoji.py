@@ -29,6 +29,8 @@ SKIN_TONE_COMPONENTS = {
     'dark': 'U+1F3FF',
 }
 
+EMOJI_VARIATION_SELECTOR = 'U+FE0F'
+
 
 @click.command()
 @click.option('--url', default='https://www.unicode.org/emoji/charts-13.1/emoji-list.html')
@@ -61,8 +63,8 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
     """Parses an HTML Unicode.org emoji keywords table."""
     # parse which emoji take a single skintone modifier
     soup = BeautifulSoup(skintone_stream, 'html.parser')
+    skintone_variations = defaultdict(list)
 
-    skintone_emoji = set()
     for table in soup.find_all('table'):
         rows = table.find_all('tr')
         for row in rows:
@@ -72,12 +74,29 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
                 modifier_count = sum(codepoints.count(cp) for cp in SKIN_TONE_COMPONENTS.values())
                 # only include emoji in set if they have exactly one modifier
                 if modifier_count == 1:
-                    s = ''.join(
+                    key = ''.join(
                         f'\\U{cp[2:]:0>8s}'.format(cp)
                         for cp in codepoints.split(' ')
                         if cp not in SKIN_TONE_COMPONENTS.values()
                     ).encode('utf8').decode('unicode-escape')
-                    skintone_emoji.add(s)
+
+                    # some emoji expect the variation selector instead of the skin tone modifier
+                    substitute_codepoints = codepoints
+                    for modifier in SKIN_TONE_COMPONENTS.values():
+                        substitute_codepoints = substitute_codepoints.replace(modifier, EMOJI_VARIATION_SELECTOR)
+
+                    substitute_key = ''.join(
+                        f'\\U{cp[2:]:0>8s}'.format(cp)
+                        for cp in substitute_codepoints.split(' ')
+                    ).encode('utf8').decode('unicode-escape')
+
+                    value = ''.join(
+                        f'\\U{cp[2:]:0>8s}'.format(cp)
+                        for cp in codepoints.split(' ')
+                    ).encode('utf8').decode('unicode-escape')
+
+                    skintone_variations[key].append(value)
+                    skintone_variations[substitute_key].append(value)
 
 
     # parse the full emoji keyword table
@@ -129,7 +148,7 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
                     keywords.add(short_name.lower().strip())
                     if subcategory:
                         keywords.add(subcategory.lower().strip())
-                result[category_key].append([s, int(s in skintone_emoji), list(keywords)])
+                result[category_key].append([s, skintone_variations[s], list(keywords)])
 
     return result
 
