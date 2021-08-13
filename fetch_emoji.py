@@ -31,6 +31,8 @@ SKIN_TONE_COMPONENTS = {
 
 EMOJI_VARIATION_SEL = 'U+FE0F'
 
+EXCLUDE_KEYWORDS = {'with', 'without', 'the', 'on', 'in'}
+
 
 @click.command()
 @click.option('--url', default='https://www.unicode.org/emoji/charts-13.1/emoji-list.html')
@@ -38,10 +40,9 @@ EMOJI_VARIATION_SEL = 'U+FE0F'
 @click.option('--extra-keywords', help='CSV of extra keywords', required=True)
 @click.option('--fe0f', help='CSV of characters that require an emoji variation selector to render correctly', required=True)
 @click.option('--exclude', help='CSV of characters to exclude', required=True)
-@click.option('--flatten-keywords', help='enable flattening of phrases to separate keywords', is_flag=True, default=True)
-@click.option('--indent', help='indentation to use in JSON output', type=int)
-def parse(url, skintone_url, extra_keywords, fe0f, exclude, flatten_keywords, indent):
-    data = parse_emoji(request.urlopen(url).read(), request.urlopen(skintone_url).read(), flatten_keywords)
+@click.option('--no-indent', help='writes the JSON file without indentation', is_flag=True)
+def parse(url, skintone_url, extra_keywords, fe0f, exclude, no_indent):
+    data = parse_emoji(request.urlopen(url).read(), request.urlopen(skintone_url).read())
 
     with open(extra_keywords) as f:
         for row in csv.reader(f):
@@ -81,10 +82,10 @@ def parse(url, skintone_url, extra_keywords, fe0f, exclude, flatten_keywords, in
         data = new_data
 
     with open('data/emoji.json', 'w', encoding='utf8') as f:
-        f.write(json.dumps(data, indent=indent, ensure_ascii=False))
+        f.write(json.dumps(data, indent=None if no_indent else 2, ensure_ascii=False))
 
 
-def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
+def parse_emoji(keyword_stream, skintone_stream):
     """Parses an HTML Unicode.org emoji keywords table."""
     # parse which emoji take a single skintone modifier
     soup = BeautifulSoup(skintone_stream, 'html.parser')
@@ -157,21 +158,20 @@ def parse_emoji(keyword_stream, skintone_stream, flatten_keywords=False):
                 codepoints = cols[1].get_text().strip().split(' ')
                 s = ''.join(f'\\U{cp[2:]:0>8s}'.format(cp) for cp in codepoints).encode('utf8').decode('unicode-escape')
 
-                short_name = cols[3].get_text().strip()
+                # the ⊛ character is used to indicate that an emoji is new
+                short_name = cols[3].get_text().replace('⊛', '').strip()
+
                 keywords = set()
-                if flatten_keywords:
-                    # flatten keywords from shortname, category, and keyword phrases down to unique lowercase individual words
-                    for kw in cols[4].get_text().split('|'):
-                        keywords.update(kw.lower().strip().replace(':', '').split(' '))
-                    keywords.update(short_name.lower().strip().replace(':', '').split(' '))
-                    if subcategory:
-                        keywords.update(subcategory.lower().strip().replace(':', '').split(' '))
-                else:
-                    # lowercase keywords, but keep phrases as phrases
-                    keywords.update(kw.strip().lower() for kw in cols[4].get_text().split('|'))
-                    keywords.add(short_name.lower().strip())
-                    if subcategory:
-                        keywords.add(subcategory.lower().strip())
+
+                # flatten keywords from shortname, category, and keyword phrases down to unique lowercase individual words
+                keywords.update(short_name.lower().strip().replace(':', '').split(' '))
+                for kw in cols[4].get_text().split('|'):
+                    keywords.update(kw.lower().strip().split(' '))
+                if subcategory:
+                    keywords.update(subcategory.lower().strip().split(' '))
+
+                # filter exclude keywords
+                keywords -= EXCLUDE_KEYWORDS
 
                 sk_list = skintone_variations[s]
                 kw_list = list(keywords)
