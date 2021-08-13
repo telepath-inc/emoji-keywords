@@ -31,7 +31,8 @@ SKIN_TONE_COMPONENTS = {
 
 EMOJI_VARIATION_SEL = 'U+FE0F'
 
-EXCLUDE_KEYWORDS = {'with', 'without', 'the', 'on', 'in'}
+EXCLUDE_KEYWORDS = {'with', 'without', 'the', 'on', 'in', 'of', '&', 'other'}
+FILTER_KEYWORD_CHARACTERS = {'(', ')', '-', '“', '”', '.'}
 
 
 @click.command()
@@ -170,11 +171,19 @@ def parse_emoji(keyword_stream, skintone_stream):
                 if subcategory:
                     keywords.update(subcategory.lower().strip().split(' '))
 
-                # filter exclude keywords
-                keywords -= EXCLUDE_KEYWORDS
+                # filter keyword characters
+                filtered_keywords = set()
+                for kw in keywords:
+                    filtered_kw = kw
+                    for char in FILTER_KEYWORD_CHARACTERS:
+                        filtered_kw = filtered_kw.replace(char, '')
+                    filtered_keywords.add(filtered_kw)
+
+                # exclude keywords
+                filtered_keywords -= EXCLUDE_KEYWORDS
 
                 sk_list = skintone_variations[s]
-                kw_list = list(keywords)
+                kw_list = list(filtered_keywords)
                 result[category_key].append([s, sk_list, kw_list])
 
     return result
