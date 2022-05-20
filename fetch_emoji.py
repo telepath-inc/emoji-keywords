@@ -38,25 +38,13 @@ FILTER_KEYWORD_CHARACTERS = {'(', ')', '-', '“', '”', '.', ','}
 @click.command()
 @click.option('--url', default='https://www.unicode.org/emoji/charts-14.0/emoji-list.html')
 @click.option('--skintone-url', default='https://www.unicode.org/emoji/charts-14.0/full-emoji-modifiers.html')
-@click.option('--extra-keywords', help='CSV of extra keywords', required=True)
 @click.option('--fe0f', help='CSV of characters that require an emoji variation selector to render correctly', required=True)
-@click.option('--exclude', help='CSV of characters to exclude', required=True)
+@click.option('--extra-keywords', help='CSV of extra keywords', required=False)
+@click.option('--exclude', help='CSV of characters to exclude', required=False)
+@click.option('--out', help='filename to write to instead of stdout', required=False)
 @click.option('--no-indent', help='writes the JSON file without indentation', is_flag=True)
-def parse(url, skintone_url, extra_keywords, fe0f, exclude, no_indent):
+def parse(url, skintone_url, fe0f, extra_keywords, exclude, out, no_indent):
     data = parse_emoji(request.urlopen(url).read(), request.urlopen(skintone_url).read())
-
-    with open(extra_keywords) as f:
-        for row in csv.reader(f):
-            emoji = row[0].strip()
-            keyword = row[1].strip()
-            for _, category_emojis in data.items():
-                if any(emoji == ce[0] for ce in category_emojis):
-                    for e, _, kw_list in category_emojis:
-                        if e == emoji:
-                            kw_list.append(keyword)
-                    break
-            else:
-                print(f"% WARNING: unable to add extra keywords for missing emoji: {emoji}")
 
     with open(fe0f) as f:
         sel_cp = bytes(f'\\U{EMOJI_VARIATION_SEL[2:]:0>8s}'.format(EMOJI_VARIATION_SEL).encode('utf-8'))
@@ -69,21 +57,39 @@ def parse(url, skintone_url, extra_keywords, fe0f, exclude, no_indent):
                         cp += sel_cp
                         data[category][i][0] = cp.decode('unicode-escape')
 
-    with open(exclude) as f:
-        new_data = defaultdict(list)
-        exclude_set = set()
-        for row in csv.reader(f):
-            exclude_set.add(row[0].strip())
-        for category, category_emojis in data.items():
-            for emoji_data in category_emojis:
-                if emoji_data[0] not in exclude_set:
-                    new_data[category].append(emoji_data)
+    if extra_keywords:
+        with open(extra_keywords) as f:
+            for row in csv.reader(f):
+                emoji = row[0].strip()
+                keyword = row[1].strip()
+                for _, category_emojis in data.items():
+                    if any(emoji == ce[0] for ce in category_emojis):
+                        for e, _, kw_list in category_emojis:
+                            if e == emoji:
+                                kw_list.append(keyword)
+                        break
                 else:
-                    print(f"% excluding emoji: {emoji_data[0]}")
-        data = new_data
+                    print(f"% WARNING: unable to add extra keywords for missing emoji: {emoji}")
 
-    with open('data/emoji.json', 'w', encoding='utf8') as f:
-        f.write(json.dumps(data, indent=None if no_indent else 2, ensure_ascii=False))
+    if exclude:
+        with open(exclude) as f:
+            new_data = defaultdict(list)
+            exclude_set = set()
+            for row in csv.reader(f):
+                exclude_set.add(row[0].strip())
+            for category, category_emojis in data.items():
+                for emoji_data in category_emojis:
+                    if emoji_data[0] not in exclude_set:
+                        new_data[category].append(emoji_data)
+                    else:
+                        print(f"% excluding emoji: {emoji_data[0]}")
+            data = new_data
+
+    if out:
+        with open(out, 'w', encoding='utf8') as f:
+            json.dump(data, f, indent=None if no_indent else 2, ensure_ascii=False)
+    else:
+        print(json.dumps(data, indent=None if no_indent else 2, ensure_ascii=False))
 
 
 def parse_emoji(keyword_stream, skintone_stream):
