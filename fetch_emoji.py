@@ -36,8 +36,8 @@ FILTER_KEYWORD_CHARACTERS = {'(', ')', '-', '“', '”', '.', ','}
 
 
 @click.command()
-@click.option('--url', default='https://www.unicode.org/emoji/charts-14.0/emoji-list.html')
-@click.option('--skintone-url', default='https://www.unicode.org/emoji/charts-14.0/full-emoji-modifiers.html')
+@click.option('--url', default='https://www.unicode.org/emoji/charts-15.0/emoji-list.html')
+@click.option('--skintone-url', default='https://www.unicode.org/emoji/charts-15.0/full-emoji-modifiers.html')
 @click.option('--fe0f', help='CSV of characters that require an emoji variation selector to render correctly', required=True)
 @click.option('--extra-keywords', help='CSV of extra keywords', required=False)
 @click.option('--exclude', help='CSV of characters to exclude', required=False)
