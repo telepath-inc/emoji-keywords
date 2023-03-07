@@ -31,8 +31,8 @@ SKIN_TONE_COMPONENTS = {
 
 EMOJI_VARIATION_SEL = 'U+FE0F'
 
-EXCLUDE_KEYWORDS = {'with', 'without', 'the', 'on', 'in', 'of', 'a', '&', 'other'}
-FILTER_KEYWORD_CHARACTERS = {'(', ')', '-', '“', '”', '.', ','}
+EXCLUDE_KEYWORDS = {'with', 'without', 'the', 'on', 'in', 'of', 'a', '&', 'other', 'partial'}
+FILTER_KEYWORD_CHARACTERS = {'(', ')', '-', '“', '”', '.', ',', ':'}
 
 
 @click.command()
