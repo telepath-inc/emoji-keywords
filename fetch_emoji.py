@@ -190,6 +190,7 @@ def parse_emoji(keyword_stream, skintone_stream):
 
                 sk_list = skintone_variations[s]
                 kw_list = list(filtered_keywords)
+                kw_list.sort()
                 result[category_key].append([s, sk_list, kw_list])
 
     return result
